@@ -8,7 +8,7 @@ import torch.nn.functional as F
 
 
 class Actor(nn.Module):
-	def __init__(self, state_dim, action_dim, max_action, hidden_sizes=[400, 300]):
+	def __init__(self, state_dim, action_dim, max_action, hidden_sizes=[256, 256]):
 		super(Actor, self).__init__()
 
 		self.l1 = nn.Linear(state_dim, hidden_sizes[0])
@@ -25,7 +25,7 @@ class Actor(nn.Module):
 
 
 class Critic(nn.Module):
-	def __init__(self, state_dim, action_dim, hidden_sizes=[400, 300]):
+	def __init__(self, state_dim, action_dim, hidden_sizes=[256, 256]):
 		super(Critic, self).__init__()
 
 		self.l1 = nn.Linear(state_dim + action_dim, hidden_sizes[0])
@@ -59,7 +59,7 @@ class DATD3(object):
 		noise_clip=0.5,
 		actor_lr=1e-3,
 		critic_lr=1e-3,
-		hidden_sizes=[400, 300],
+		hidden_sizes=[256, 256],
 	):
 		self.device = device
 
@@ -98,13 +98,25 @@ class DATD3(object):
 
 		return action.cpu().data.numpy().flatten()
 
+	def select_action_eval(self, state):
+		state = torch.FloatTensor(state.reshape(1, -1)).to(self.device)
 
-	def train(self, replay_buffer, batch_size=100):
+		action1 = self.actor1(state)
+		action2 = self.actor2(state)
+
+		q1 = self.critic1(state, action1)
+		q2 = self.critic2(state, action2)
+
+		action = action1 if q1 >= q2 else action2
+
+		return action.cpu().data.numpy().flatten()
+
+	def train(self, replay_buffer, batch_size=256):
 		## cross update scheme
 		self.train_one_q_and_pi(replay_buffer, True, batch_size=batch_size)
 		self.train_one_q_and_pi(replay_buffer, False, batch_size=batch_size)
 
-	def train_one_q_and_pi(self, replay_buffer, update_a1 = True, batch_size=100):
+	def train_one_q_and_pi(self, replay_buffer, update_a1 = True, batch_size=256):
 
 		state, action, next_state, reward, not_done = replay_buffer.sample(batch_size)
 
@@ -172,25 +184,3 @@ class DATD3(object):
 
 			for param, target_param in zip(self.actor2.parameters(), self.actor2_target.parameters()):
 				target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
-
-	def save(self, filename):
-		torch.save(self.critic1.state_dict(), filename + "_critic1")
-		torch.save(self.critic1_optimizer.state_dict(), filename + "_critic1_optimizer")
-		torch.save(self.actor1.state_dict(), filename + "_actor1")
-		torch.save(self.actor1_optimizer.state_dict(), filename + "_actor1_optimizer")
-
-		torch.save(self.critic2.state_dict(), filename + "_critic2")
-		torch.save(self.critic2_optimizer.state_dict(), filename + "_critic2_optimizer")
-		torch.save(self.actor2.state_dict(), filename + "_actor2")
-		torch.save(self.actor2_optimizer.state_dict(), filename + "_actor2_optimizer")
-
-	def load(self, filename):
-		self.critic1.load_state_dict(torch.load(filename + "_critic1"))
-		self.critic1_optimizer.load_state_dict(torch.load(filename + "_critic1_optimizer"))
-		self.actor1.load_state_dict(torch.load(filename + "_actor1"))
-		self.actor1_optimizer.load_state_dict(torch.load(filename + "_actor1_optimizer"))
-
-		self.critic2.load_state_dict(torch.load(filename + "_critic2"))
-		self.critic2_optimizer.load_state_dict(torch.load(filename + "_critic2_optimizer"))
-		self.actor2.load_state_dict(torch.load(filename + "_actor2"))
-		self.actor2_optimizer.load_state_dict(torch.load(filename + "_actor2_optimizer"))

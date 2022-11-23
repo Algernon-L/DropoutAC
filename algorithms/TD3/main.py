@@ -1,23 +1,18 @@
+import sys
+sys.path.append('../../')
 import numpy as np
 import torch
 import gym
 import pybulletgym
 import argparse
 import os
-import utils
+from utils.buffer import ReplayBuffer
 import random
-import math
-import time
 
 import TD3  ## baselines
-import DDPG  ## baselines
-import DARC.DARC
-import DADDPG
 import DATD3
-import DropoutAC
-import MAMC
+import TD3ver1
 from tensorboardX import SummaryWriter
-from torchinfo import summary
 
 
 def eval_policy(policy, env_name, seed, eval_episodes=10, eval_cnt=None):
@@ -42,7 +37,7 @@ def eval_policy(policy, env_name, seed, eval_episodes=10, eval_cnt=None):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dir", default="./logs/")
+    parser.add_argument("--dir", default="../../logs/")
     parser.add_argument("--ver", default="")
     parser.add_argument("--policy", default="MAC", help='policy to use, support MAC, TD3')
     parser.add_argument("--env", default="HalfCheetah-v2")
@@ -55,28 +50,16 @@ if __name__ == "__main__":
     parser.add_argument("--discount", default=0.99, help='Discount factor')
     parser.add_argument("--tau", default=0.005, help='Target network update rate')
 
-    parser.add_argument("--qweight", default=0.2, type=float,
-                        help='The weighting coefficient that correlates value estimation from double actors')
-    parser.add_argument("--reg", default=0.000, type=float, help='The regularization parameter for DARC')
-
     parser.add_argument("--actor-lr", default=1e-3, type=float)
     parser.add_argument("--critic-lr", default=1e-3, type=float)
     parser.add_argument("--hidden-sizes", default='256,256', type=str)
     parser.add_argument("--batch-size", default=256, type=int)  # Batch size for both actor and critic
 
-    parser.add_argument("--save-model", action="store_true")  # Save model and optimizer parameters
-    parser.add_argument("--load-model", default="")  # Model load file name, "" doesn't load, "default" uses file_name
-
     parser.add_argument("--expl-noise", default=0.1, type=float)  # Std of Gaussian exploration noise
     parser.add_argument("--policy-noise", default=0.2, type=float)  # Noise added to target policy during critic update
     parser.add_argument("--noise-clip", default=0.5, type=float)  # Range to clip target policy noise
 
-    parser.add_argument("--dropout-rate", default=0.01, type=float)  # DroQ dropout_rate
-    parser.add_argument("--layer-norm", default=True, type=bool)  # DroQ layer_norm
     parser.add_argument("--update-per-step", default=1, type=int)  # DroQ update_per_step
-
-    parser.add_argument("--actor-num", default=2, type=int)  # MAMC
-    parser.add_argument("--critic-num", default=2, type=int)
 
     parser.add_argument("--policy-freq", default=2, type=int, help='Frequency of delayed policy updates')
 
@@ -88,8 +71,6 @@ if __name__ == "__main__":
 
     outdir = args.dir + args.env.split('-', 1)[0] + "/" + args.policy + args.ver + "/seed" + str(args.seed)
     writer = SummaryWriter('{}'.format(outdir))
-    if args.save_model and not os.path.exists("{}/models".format(outdir)):
-        os.makedirs("{}/models".format(outdir))
 
     env = gym.make(args.env)
 
@@ -126,59 +107,21 @@ if __name__ == "__main__":
 
         policy = TD3.TD3(**kwargs)
 
-    elif args.policy == "TD3":
-        kwargs["policy_noise"] = args.policy_noise * max_action
-        kwargs["noise_clip"] = args.noise_clip * max_action
-        kwargs["policy_freq"] = args.policy_freq
-
-        policy = TD3.TD3(**kwargs)
-
-    elif args.policy == "DDPG":
-        policy = DDPG.DDPG(**kwargs)
-
     elif args.policy == "DATD3":
         kwargs["policy_noise"] = args.policy_noise * max_action
         kwargs["noise_clip"] = args.noise_clip * max_action
 
         policy = DATD3.DATD3(**kwargs)
 
-    elif args.policy == "DARC":
+    elif args.policy == "TD3ver1":
+        # TD3 with random sample update [0.5,1.5]
         kwargs["policy_noise"] = args.policy_noise * max_action
         kwargs["noise_clip"] = args.noise_clip * max_action
-        kwargs["q_weight"] = args.qweight
-        kwargs["regularization_weight"] = args.reg
+        kwargs["policy_freq"] = args.policy_freq
 
-        policy = DARC.DARC(**kwargs)
-
-    elif args.policy == "DADDPG":
-        kwargs["policy_noise"] = args.policy_noise * max_action
-        kwargs["noise_clip"] = args.noise_clip * max_action
-
-        policy = DADDPG.DADDPG(**kwargs)
-
-    elif args.policy == "DropoutAC":
-        kwargs["policy_noise"] = args.policy_noise * max_action
-        kwargs["noise_clip"] = args.noise_clip * max_action
-        kwargs["regularization_weight"] = args.reg
-        kwargs["q_weight"] = args.qweight
-        kwargs["dropout_rate"] = args.dropout_rate
-
-        policy = DropoutAC.DropoutAC(**kwargs)
-
-    elif args.policy == "MAMC":
-        kwargs["policy_noise"] = args.policy_noise * max_action
-        kwargs["noise_clip"] = args.noise_clip * max_action
-        kwargs["q_weight"] = args.qweight
-        kwargs["regularization_weight"] = args.reg
-        kwargs["actor_num"] = args.actor_num
-        kwargs["critic_num"] = args.critic_num
-
-        policy = MAMC.MAMC(**kwargs)
+        policy = TD3ver1.TD3ver1(**kwargs)
 
     print(kwargs)
-
-    if args.load_model != "":
-        policy.load("./models/{}".format(args.load_model))
 
     ## write logs to record training parameters
     with open(outdir + '/log.txt', 'w') as f:
@@ -186,7 +129,7 @@ if __name__ == "__main__":
         for item in kwargs.items():
             f.write('\n {}'.format(item))
 
-    replay_buffer = utils.ReplayBuffer(state_dim, action_dim, device)
+    replay_buffer = ReplayBuffer(state_dim, action_dim, device)
 
     eval_cnt = 0
 
@@ -223,9 +166,9 @@ if __name__ == "__main__":
                 policy.train(replay_buffer, args.batch_size)
 
         if done:
-            print(
-                "Total T: {} Episode Num: {} Episode T: {} Reward: {}".format(t + 1, episode_num + 1, episode_timesteps,
-                                                                              episode_reward))
+            # print(
+            #     "Total T: {} Episode Num: {} Episode T: {} Reward: {}".format(t + 1, episode_num + 1, episode_timesteps,
+            #                                                                   episode_reward))
             writer.add_scalar('train return', episode_reward, global_step=t + 1)
 
             state, done = env.reset(), False
@@ -238,6 +181,4 @@ if __name__ == "__main__":
             writer.add_scalar('test return', eval_return, global_step=t + 1)
             eval_cnt += 1
 
-            if args.save_model:
-                policy.save('{}/models/model'.format(outdir))
     writer.close()

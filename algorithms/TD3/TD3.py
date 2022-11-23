@@ -1,6 +1,5 @@
 import copy
 import numpy as np
-import utils
 
 import torch
 import torch.nn as nn
@@ -77,7 +76,7 @@ class TD3(object):
 		policy_freq=2,
 		actor_lr=1e-3,
 		critic_lr=1e-3,
-		hidden_sizes=[400, 300],
+		hidden_sizes=[256, 256],
 	):
 		self.device = device
 
@@ -104,8 +103,13 @@ class TD3(object):
 		action = self.actor(state)
 		return action.cpu().data.numpy().flatten()
 
+	def select_action_eval(self, state):
+		state = torch.FloatTensor(state.reshape(1, -1)).to(self.device)
+		action = self.actor(state)
+		return action.cpu().data.numpy().flatten()
 
-	def train(self, replay_buffer, batch_size=100):
+
+	def train(self, replay_buffer, batch_size=256):
 		self.total_it += 1
 
 		# Sample replay buffer 
@@ -140,15 +144,3 @@ class TD3(object):
 
 			for param, target_param in zip(self.actor.parameters(), self.actor_target.parameters()):
 				target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
-
-	def save(self, filename):
-		torch.save(self.critic.state_dict(), filename + "_critic")
-		torch.save(self.critic_optimizer.state_dict(), filename + "_critic_optimizer")
-		torch.save(self.actor.state_dict(), filename + "_actor")
-		torch.save(self.actor_optimizer.state_dict(), filename + "_actor_optimizer")
-
-	def load(self, filename):
-		self.critic.load_state_dict(torch.load(filename + "_critic"))
-		self.critic_optimizer.load_state_dict(torch.load(filename + "_critic_optimizer"))
-		self.actor.load_state_dict(torch.load(filename + "_actor"))
-		self.actor_optimizer.load_state_dict(torch.load(filename + "_actor_optimizer"))
