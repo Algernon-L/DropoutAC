@@ -3,7 +3,6 @@ sys.path.append('../../')
 import numpy as np
 import torch
 import gym
-import pybulletgym
 import argparse
 import os
 from utils.buffer import ReplayBuffer
@@ -12,6 +11,7 @@ import random
 import TD3  ## baselines
 import DATD3
 import TD3ver1
+import TD3ucb
 from tensorboardX import SummaryWriter
 
 
@@ -62,6 +62,9 @@ if __name__ == "__main__":
     parser.add_argument("--update-per-step", default=1, type=int)  # DroQ update_per_step
 
     parser.add_argument("--policy-freq", default=2, type=int, help='Frequency of delayed policy updates')
+
+    parser.add_argument("--dropout-rate", default=0.01, type=float)
+    parser.add_argument("--ucb-times", default=1, type=int)
 
     args = parser.parse_args()
 
@@ -120,6 +123,16 @@ if __name__ == "__main__":
         kwargs["policy_freq"] = args.policy_freq
 
         policy = TD3ver1.TD3ver1(**kwargs)
+
+    elif args.policy == "TD3ucb":
+        # TD3 with random sample update [0.5,1.5]
+        kwargs["policy_noise"] = args.policy_noise * max_action
+        kwargs["noise_clip"] = args.noise_clip * max_action
+        kwargs["policy_freq"] = args.policy_freq
+        kwargs["dropout_rate"] = args.dropout_rate
+        kwargs["ucb_times"] = args.ucb_times
+
+        policy = TD3ucb.TD3ucb(**kwargs)
 
     print(kwargs)
 
