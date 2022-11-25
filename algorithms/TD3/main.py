@@ -10,6 +10,7 @@ import random
 
 import TD3  ## baselines
 import DATD3
+import DATD3ver1
 import TD3ver1
 import TD3ucb
 from tensorboardX import SummaryWriter
@@ -115,6 +116,12 @@ if __name__ == "__main__":
         kwargs["noise_clip"] = args.noise_clip * max_action
 
         policy = DATD3.DATD3(**kwargs)
+
+    elif args.policy == "DATD3ver1":
+        kwargs["policy_noise"] = args.policy_noise * max_action
+        kwargs["noise_clip"] = args.noise_clip * max_action
+
+        policy = DATD3ver1.DATD3ver1(**kwargs)
 
     elif args.policy == "TD3ver1":
         # TD3 with random sample update [0.5,1.5]
