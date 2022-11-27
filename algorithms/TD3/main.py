@@ -12,6 +12,7 @@ import TD3  ## baselines
 import DATD3
 import DATD3ver1
 import TD3ver1
+import TD3DAver1
 import TD3ucb
 from tensorboardX import SummaryWriter
 
@@ -73,6 +74,8 @@ if __name__ == "__main__":
     print("Policy: {}, Env: {}, Seed: {}".format(args.policy, args.env, args.seed))
     print("------------------------------------------------------------")
 
+    print(args)
+
     outdir = args.dir + args.env.split('-', 1)[0] + "/" + args.policy + args.ver + "/seed" + str(args.seed)
     writer = SummaryWriter('{}'.format(outdir))
 
@@ -130,6 +133,13 @@ if __name__ == "__main__":
         kwargs["policy_freq"] = args.policy_freq
 
         policy = TD3ver1.TD3ver1(**kwargs)
+
+    elif args.policy == "TD3DAver1":
+        kwargs["policy_noise"] = args.policy_noise * max_action
+        kwargs["noise_clip"] = args.noise_clip * max_action
+        kwargs["policy_freq"] = args.policy_freq
+
+        policy = TD3DAver1.TD3DAver1(**kwargs)
 
     elif args.policy == "TD3ucb":
         # TD3 with random sample update [0.5,1.5]

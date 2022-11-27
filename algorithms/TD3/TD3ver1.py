@@ -112,8 +112,6 @@ class TD3ver1(object):
 		current_Q2 = self.critic2(state, action)
 
 		q_weight_decay = 0.5 * self.total_it / 1000000
-		if self.total_it % 5000 == 0:
-			print(0.5 + q_weight_decay, 1.5 - q_weight_decay)
 		q1weight = random.uniform(0.5 + q_weight_decay, 1.5 - q_weight_decay)
 		q2weight = 2.0 - q1weight
 
