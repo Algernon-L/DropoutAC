@@ -46,7 +46,7 @@ class Critic(nn.Module):
 		return q
 
 
-class DARC(object):
+class DARCnoreg(object):
 	def __init__(
 		self,
 		state_dim,
@@ -61,7 +61,6 @@ class DARC(object):
 		critic_lr=1e-3,
 		hidden_sizes=[256, 256],
 		q_weight=0.1,
-		regularization_weight = 0.005,
 	):
 		self.device = device
 
@@ -87,7 +86,6 @@ class DARC(object):
 		self.policy_noise = policy_noise
 		self.noise_clip = noise_clip
 		self.q_weight = q_weight
-		self.regularization_weight = regularization_weight
 
 	def select_action(self, state):
 		state = torch.FloatTensor(state.reshape(1, -1)).to(self.device)
@@ -156,7 +154,7 @@ class DARC(object):
 			current_Q2 = self.critic2(state, action)
 
 			## critic regularization
-			critic1_loss = F.mse_loss(current_Q1, target_Q) + self.regularization_weight * F.mse_loss(current_Q1, current_Q2)
+			critic1_loss = F.mse_loss(current_Q1, target_Q)
 
 			self.critic1_optimizer.zero_grad()
 			critic1_loss.backward()
@@ -179,7 +177,7 @@ class DARC(object):
 			current_Q2 = self.critic2(state, action)
 
 			## critic regularization
-			critic2_loss = F.mse_loss(current_Q2, target_Q) + self.regularization_weight * F.mse_loss(current_Q2, current_Q1)
+			critic2_loss = F.mse_loss(current_Q2, target_Q)
 
 			self.critic2_optimizer.zero_grad()
 			critic2_loss.backward()
